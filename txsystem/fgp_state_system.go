@@ -1,0 +1,83 @@
+package txsystem
+
+import (
+	"crypto/sha256"
+	"errors"
+	"sync"
+
+	"github.com/unicitynetwork/bft-go-base/types"
+)
+
+var _ TransactionSystem = (*FGPStateSystem)(nil)
+
+type FGPStateSystem struct {
+	mu sync.RWMutex
+
+	shardConf          types.PartitionDescriptionRecord
+	committedStateHash []byte
+	pendingStateHash   []byte
+	committedUC        *types.UnicityCertificate
+	summaryValue       []byte
+	sumOfEarnedFees    uint64
+	etHash             []byte
+}
+
+func NewFGPStateSystem(shardConf types.PartitionDescriptionRecord) *FGPStateSystem {
+	h := sha256.Sum256(nil) // TODO genesis state hash can be anything?
+	return &FGPStateSystem{
+		shardConf:          shardConf,
+		committedStateHash: h[:],
+		summaryValue:       []byte{}, // always empty non-nil constant for FGP, nil is not allowed by the BFT nodes
+		sumOfEarnedFees:    0,        // always 0 for FGP
+		etHash:             nil,      // always nil for FGP
+	}
+}
+
+func (s *FGPStateSystem) StateSummary() (*StateSummary, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.pendingStateHash != nil {
+		return nil, ErrStateContainsUncommittedChanges
+	}
+
+	return NewStateSummary(s.committedStateHash, []byte{}, 0, nil), nil
+}
+
+func (s *FGPStateSystem) ApplyBlock(round uint64, powHash []byte) (*StateSummary, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.pendingStateHash = powHash
+
+	return NewStateSummary(s.pendingStateHash, s.summaryValue, 0, nil), nil
+}
+
+func (s *FGPStateSystem) Revert() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.pendingStateHash = nil
+}
+
+func (s *FGPStateSystem) Commit(uc *types.UnicityCertificate) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.pendingStateHash == nil {
+		return errors.New("no pending state to commit")
+	}
+
+	s.committedStateHash = s.pendingStateHash
+	s.committedUC = uc
+	s.pendingStateHash = nil
+
+	return nil
+}
+
+func (s *FGPStateSystem) CommittedUC() *types.UnicityCertificate {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.committedUC
+}

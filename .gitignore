@@ -1,0 +1,28 @@
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Binaries & Build
+build/
+bin/
+*.exe
+*.test
+*.prof
+
+# Local Data & Logs
+test-nodes/
+*.db
+*.log
+test-coverage.out
+
+# Secrets & Environment
+.env
+*.key
+*.pem
+*.txt
+
+# OS Files
+.DS_Store
+Thumbs.db

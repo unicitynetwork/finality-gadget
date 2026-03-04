@@ -1,0 +1,26 @@
+# Version control
+.git
+.gitignore
+
+# IDEs / editors
+.idea
+.vscode
+*.swp
+*.swo
+
+# Build outputs
+build/
+bin/
+
+# Local data / large artifacts
+test-nodes/
+*.db
+*.log
+*.out
+start.sh
+
+# Documentation
+docs/
+
+# Misc
+.DS_Store
