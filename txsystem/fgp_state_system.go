@@ -6,9 +6,11 @@ import (
 	"sync"
 
 	"github.com/unicitynetwork/bft-go-base/types"
+
+	"github.com/unicitynetwork/finality-gadget/txsystem/state"
 )
 
-var _ TransactionSystem = (*FGPStateSystem)(nil)
+// var _ partition.TransactionSystem = (*FGPStateSystem)(nil)
 
 type FGPStateSystem struct {
 	mu sync.RWMutex
@@ -33,24 +35,24 @@ func NewFGPStateSystem(shardConf types.PartitionDescriptionRecord) *FGPStateSyst
 	}
 }
 
-func (s *FGPStateSystem) StateSummary() (*StateSummary, error) {
+func (s *FGPStateSystem) StateSummary() (*state.Summary, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	if s.pendingStateHash != nil {
-		return nil, ErrStateContainsUncommittedChanges
+		return nil, state.ErrStateContainsUncommittedChanges
 	}
 
-	return NewStateSummary(s.committedStateHash, []byte{}, 0, nil), nil
+	return state.NewStateSummary(s.committedStateHash, []byte{}, s.sumOfEarnedFees, s.etHash), nil
 }
 
-func (s *FGPStateSystem) ApplyBlock(round uint64, powHash []byte) (*StateSummary, error) {
+func (s *FGPStateSystem) ApplyBlock(round uint64, powHash []byte) (*state.Summary, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.pendingStateHash = powHash
 
-	return NewStateSummary(s.pendingStateHash, s.summaryValue, 0, nil), nil
+	return state.NewStateSummary(s.pendingStateHash, s.summaryValue, s.sumOfEarnedFees, s.etHash), nil
 }
 
 func (s *FGPStateSystem) Revert() {

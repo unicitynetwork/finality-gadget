@@ -1,9 +1,9 @@
-# Finality Gadget (FGP)
+# Finality Gadget Partition (FGP)
 
-Finality Gadget implementation for the Unicity Network as defined in the Unicity Yellowpaper. 
+FGP implementation for the Unicity Network as defined in the Yellowpaper. 
 https://github.com/unicitynetwork/unicity-yellowpaper-tex
 
-The FGP is a partition under Unicity BFT. The partition has type id 3 and also instance id of 3.
+The FGP is a partition under Unicity BFT. 
 It is a headers-only partition (with no units or transactions, and no state or block data other 
 than the hash of the PoW block being finalized).
 
@@ -11,9 +11,9 @@ See Sec 6.3 Finality Gadget of the YP for more details.
 
 ## Prerequisites
 
-- **Go**: 1.24 or higher (Required for **local** builds and testing)
+- **Go**: 1.24 or higher
 - **Make**: (Optional, for using the Makefile)
-- **Docker**: (Optional, for containerized builds; handles Go internally)
+- **Docker**: (Optional)
 
 ## Building the Project
 

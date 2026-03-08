@@ -9,8 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/types"
-
-	test "github.com/unicitynetwork/finality-gadget/internal/testutils"
 )
 
 func CreateUnicityCertificate(
@@ -23,7 +21,9 @@ func CreateUnicityCertificate(
 	trHash []byte,
 ) *types.UnicityCertificate {
 	t.Helper()
-	shardConfHash := test.DoHash(t, shardConf)
+	shardConfHash, err := shardConf.Hash(gocrypto.SHA256)
+	require.NoError(t, err)
+
 	sTree, err := types.CreateShardTree(types.ShardingScheme{}, []types.ShardTreeInput{
 		{Shard: types.ShardID{}, IR: ir, TRHash: trHash, ShardConfHash: shardConfHash},
 	}, gocrypto.SHA256)
@@ -89,11 +89,4 @@ func nodeIDFromVerifier(t *testing.T, v crypto.Verifier) peer.ID {
 	peerID, err := peer.IDFromPublicKey(pubKey)
 	require.NoError(t, err)
 	return peerID
-}
-
-func UnicitySealBytes(t *testing.T, unicitySeal *types.UnicitySeal) []byte {
-	t.Helper()
-	h, err := unicitySeal.SigBytes()
-	require.NoError(t, err)
-	return h
 }

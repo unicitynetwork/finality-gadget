@@ -9,10 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	abcrypto "github.com/unicitynetwork/bft-go-base/crypto"
 	"github.com/unicitynetwork/bft-go-base/types"
-	"github.com/unicitynetwork/bft-go-base/types/hex"
 )
-
-type AlwaysValidTrustBase struct{}
 
 func NewTrustBase(t *testing.T, signers ...abcrypto.Signer) types.RootTrustBase {
 	var nodes []*types.NodeInfo
@@ -66,44 +63,4 @@ func NewNodeInfoFromVerifier(t *testing.T, nodeID string, sigVerifier abcrypto.V
 		SigKey: sigKey,
 		Stake:  1,
 	}
-}
-
-func NewAlwaysValidTrustBase(t *testing.T) types.RootTrustBase {
-	return &AlwaysValidTrustBase{}
-}
-
-func (a AlwaysValidTrustBase) VerifyQuorumSignatures(data []byte, signatures map[string]hex.Bytes) error {
-	return nil
-}
-
-func (a AlwaysValidTrustBase) VerifySignature(data []byte, sig []byte, nodeID string) (uint64, error) {
-	return 1, nil
-}
-
-func (a AlwaysValidTrustBase) GetVersion() types.Version {
-	return 1
-}
-
-func (a AlwaysValidTrustBase) GetNetworkID() types.NetworkID {
-	return types.NetworkLocal
-}
-
-func (a AlwaysValidTrustBase) GetEpoch() uint64 {
-	return 0
-}
-
-func (a AlwaysValidTrustBase) GetEpochStart() uint64 {
-	return 1
-}
-
-func (a AlwaysValidTrustBase) GetQuorumThreshold() uint64 {
-	return 1
-}
-
-func (a AlwaysValidTrustBase) GetMaxFaultyNodes() uint64 {
-	return 0
-}
-
-func (a AlwaysValidTrustBase) GetRootNodes() []*types.NodeInfo {
-	return nil
 }
