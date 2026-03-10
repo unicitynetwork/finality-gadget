@@ -19,7 +19,7 @@ networkId=3
 partitionId=3
 partitionTypeId=3
 shardEpoch=0
-shardEpochStart=1
+shardEpochStart=0
 
 # generate bootstrap parameter from key file and port
 boot_node() {
@@ -55,9 +55,10 @@ bootNodeId=$(../bft-core/build/ubft node-id --home test-nodes/root1 | tail -n1)
 ../bft-core/build/ubft shard-node init --home test-nodes/fgp2 --generate
 ../bft-core/build/ubft shard-node init --home test-nodes/fgp3 --generate
 
-../bft-core/build/ubft shard-conf generate --home test-nodes --network-id $networkId --partition-id $partitionId --partition-type-id $partitionTypeId --epoch $shardEpoch --epoch-start $shardEpochStart --node-info test-nodes/fgp1/node-info.json --node-info test-nodes/fgp2/node-info.json --node-info test-nodes/fgp3/node-info.json
+../bft-core/build/ubft shard-conf generate --home test-nodes --network-id $networkId --partition-id $partitionId --partition-type-id $partitionTypeId --epoch $shardEpoch --epoch-start $shardEpochStart --node-info test-nodes/fgp1/node-info.json --node-info test-nodes/fgp2/node-info.json --node-info test-nodes/fgp3/node-info.json --partition-params dFG=6
 
 # upload FGP shard config to BFT nodes
+echo "waiting for BFT nodes to start..."
 sleep 10 # wait for BFT nodes to start (can be quite slow for some reason)
 curl -X PUT -H "Content-Type: application/json" -d @./test-nodes/shard-conf-3_0.json http://localhost:25866/api/v1/configurations
 curl -X PUT -H "Content-Type: application/json" -d @./test-nodes/shard-conf-3_0.json http://localhost:25867/api/v1/configurations
@@ -73,7 +74,7 @@ build/fgp run \
     --address "/ip4/127.0.0.1/tcp/30666" \
     --bootnodes $bootNode \
     --log-format text \
-    --log-level debug \
+    --log-level info \
     >> test-nodes/fgp1/debug.log 2>&1 &
 
 build/fgp run \
@@ -83,7 +84,7 @@ build/fgp run \
     --address "/ip4/127.0.0.1/tcp/30667" \
     --bootnodes $bootNode \
     --log-format text \
-    --log-level debug \
+    --log-level info \
     >> test-nodes/fgp2/debug.log 2>&1 &
 
 build/fgp run \
@@ -93,5 +94,5 @@ build/fgp run \
     --address "/ip4/127.0.0.1/tcp/30668" \
     --bootnodes $bootNode \
     --log-format text \
-    --log-level debug \
+    --log-level info \
     >> test-nodes/fgp3/debug.log 2>&1 &

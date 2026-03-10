@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -19,13 +20,15 @@ import (
 	"github.com/unicitynetwork/finality-gadget/logger"
 	"github.com/unicitynetwork/finality-gadget/network"
 	"github.com/unicitynetwork/finality-gadget/partition"
+	"github.com/unicitynetwork/finality-gadget/pow"
 	"github.com/unicitynetwork/finality-gadget/txsystem"
 )
 
 type cliFlags struct {
-	HomeDir    string
-	CfgFile    string
-	LogCfgFile string
+	PowSocketPath string
+	HomeDir       string
+	CfgFile       string
+	LogCfgFile    string
 
 	KeyConfFile    string
 	ShardConfFiles []string
@@ -57,6 +60,12 @@ func newRunCmd(flags *cliFlags) *cobra.Command {
 	}
 
 	// Config Flags
+	home, err := os.UserHomeDir()
+	if err != nil {
+		panic("default user home dir not defined: " + err.Error())
+	}
+	runCmd.Flags().StringVar(&flags.PowSocketPath, "pow-socket-path", filepath.Join(home, ".unicity", "node.sock"), "Path to PoW node RPC socket path")
+
 	runCmd.Flags().StringVarP(&flags.KeyConfFile, "key-conf", "k", "", "path to the key configuration file (default: $FGP_HOME/keys.json)")
 	runCmd.Flags().StringSliceVarP(&flags.ShardConfFiles, "shard-conf", "s", []string{}, "path to shard conf (default: $FGP_HOME/shard-conf.json)")
 	runCmd.Flags().StringSliceVarP(&flags.TrustBaseFiles, "trust-base", "t", []string{}, "path to trust base (default: $FGP_HOME/trust-base.json)")
@@ -206,7 +215,11 @@ func runNode(ctx context.Context, flags *cliFlags, cmd *cobra.Command) error {
 		return fmt.Errorf("failed to create node configuration: %w", err)
 	}
 
-	txSystem := txsystem.NewFGPStateSystem(*nodeConf.ShardConf())
+	powClient := pow.NewIPCClient(flags.PowSocketPath)
+	txSystem, err := txsystem.NewFGPTxSystem(*shardConf, powClient, log)
+	if err != nil {
+		return fmt.Errorf("failed to create FGP tx system: %w", err)
+	}
 
 	node, err := partition.NewNode(ctx, txSystem, nodeConf, log)
 	if err != nil {

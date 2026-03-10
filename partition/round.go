@@ -2,7 +2,6 @@ package partition
 
 import (
 	"context"
-	"crypto/sha256"
 	"time"
 
 	"github.com/unicitynetwork/finality-gadget/logger"
@@ -50,7 +49,7 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 		n.log.InfoContext(ctx, "T1 timeout: node is recovering")
 		return
 	}
-	n.log.InfoContext(ctx, "Handling T1 timeout")
+	n.log.DebugContext(ctx, "Handling T1 timeout")
 	// if node is not leader, then do not do anything
 	if n.state.leader != n.peer.ID() {
 		n.log.DebugContext(ctx, "Current node is not the leader.")
@@ -58,17 +57,16 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 	}
 
 	n.log.DebugContext(ctx, "Current node is the leader.")
-	if err := n.sendBlockProposal(ctx); err != nil {
-		n.log.WarnContext(ctx, "Failed to send BlockProposal", logger.Error(err))
+
+	stateSummary, err := n.transactionSystem.LeaderPropose(ctx, n.currentRoundNumber())
+	if err != nil {
+		n.log.WarnContext(ctx, "Leader failed to apply block state transition", logger.Error(err))
+		n.transactionSystem.Revert()
 		return
 	}
 
-	// transition state for the current round
-	// TODO fetch PoW hash from PoW node, use the same hash as genesis for now
-	powHash := sha256.Sum256(nil)
-	stateSummary, err := n.transactionSystem.ApplyBlock(n.currentRoundNumber(), powHash[:])
-	if err != nil {
-		n.log.WarnContext(ctx, "Failed to apply block state transition", logger.Error(err))
+	if err := n.sendBlockProposal(ctx, stateSummary.Root()); err != nil {
+		n.log.WarnContext(ctx, "Failed to send BlockProposal", logger.Error(err))
 		return
 	}
 

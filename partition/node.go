@@ -33,23 +33,20 @@ type (
 	}
 
 	// TransactionSystem is a set of rules and logic for performing state transitions.
-	// For FGP, it tracks the latest PoW hash and increments the state root.
-	// The following sequence of methods is executed for each block: ApplyBlock and
-	// Commit (consensus round was successful) or Revert (consensus round was unsuccessful).
 	TransactionSystem interface {
 		// StateSummary returns the summary of the current state.
 		StateSummary() (*state.Summary, error)
 
-		// ApplyBlock processes the FGP block data (the PoW hash) for the given round,
-		// updates the temporary state, and returns the new StateSummary.
-		ApplyBlock(round uint64, powHash []byte) (*state.Summary, error)
+		// LeaderPropose is called by the partition leader to propose a new block.
+		LeaderPropose(ctx context.Context, round uint64) (*state.Summary, error)
 
-		// Revert signals the unsuccessful consensus round. When called the transaction system must revert all the changes
-		// made during the ApplyBlock method call.
+		// FollowerVerify is called by followers to validate the proposed block.
+		FollowerVerify(ctx context.Context, round uint64, proposedRoot []byte) (*state.Summary, error)
+
+		// Revert signals an unsuccessful consensus round.
 		Revert()
 
-		// Commit signals the successful consensus round. Called after the block was approved by the root chain. When called
-		// the transaction system must commit all the changes made during the ApplyBlock method call.
+		// Commit signals a successful consensus round.
 		Commit(uc *types.UnicityCertificate) error
 
 		// CommittedUC returns the unicity certificate of the latest commit.

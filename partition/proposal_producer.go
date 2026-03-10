@@ -12,7 +12,7 @@ import (
 	"github.com/unicitynetwork/finality-gadget/txsystem/state"
 )
 
-func (n *Node) sendBlockProposal(ctx context.Context) error {
+func (n *Node) sendBlockProposal(ctx context.Context, proposedRoot []byte) error {
 	ltr := n.latestTR()
 	if ltr == nil {
 		// Should not reach here, leader is unknown without LTR
@@ -26,6 +26,7 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 		NodeID:             nodeID,
 		UnicityCertificate: n.latestUC(),
 		Technical:          *ltr,
+		ProposedRoot:       proposedRoot,
 	}
 	n.log.Log(ctx, logger.LevelTrace, "created BlockProposal", logger.Data(prop))
 	if err := prop.Sign(n.conf.hashAlgorithm, n.conf.signer); err != nil {
@@ -92,7 +93,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string,
 	if err = req.Sign(n.conf.signer); err != nil {
 		return fmt.Errorf("failed to sign certification request: %w", err)
 	}
-	n.log.InfoContext(ctx, fmt.Sprintf("Round %v sending block certification request to root chain, IR hash %X, Block Hash %X",
+	n.log.DebugContext(ctx, fmt.Sprintf("Round %v sending block certification request to root chain, IR hash %X, Block Hash %X",
 		uc.GetRoundNumber(), ir.Hash, ir.BlockHash))
 	n.log.Log(ctx, logger.LevelTrace, "Block Certification req", logger.Data(req))
 

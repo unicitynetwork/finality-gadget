@@ -15,7 +15,7 @@ func newBlockCmd(flags *cliFlags) *cobra.Command {
 	blockCmd := &cobra.Command{
 		Use:   "block <round>",
 		Args:  cobra.ExactArgs(1),
-		Short: "Load and print a block by round number (the blocks.db must not be locked by any process)",
+		Short: "Local blocks.db viewer for testing (the blocks.db must not be locked by any process)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			round, err := strconv.ParseUint(args[0], 10, 64)
 			if err != nil {

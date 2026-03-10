@@ -31,6 +31,7 @@ type BlockProposal struct {
 	NodeID             peer.ID
 	UnicityCertificate *types.UnicityCertificate
 	Technical          certification.TechnicalRecord
+	ProposedRoot       []byte
 	Signature          []byte
 }
 

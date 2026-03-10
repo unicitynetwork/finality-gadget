@@ -79,10 +79,10 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 		return fmt.Errorf("transaction system start state mismatch error, expected: %X, got: %X", txState.Root(), uc.GetStateHash())
 	}
 
-	stateSummary, err := n.transactionSystem.ApplyBlock(n.currentRoundNumber(), txState.Root())
+	stateSummary, err := n.transactionSystem.FollowerVerify(ctx, n.currentRoundNumber(), prop.ProposedRoot)
 	if err != nil {
 		n.revertState()
-		return fmt.Errorf("failed to apply block: %w", err)
+		return fmt.Errorf("follower failed to verify proposed block: %w", err)
 	}
 	if err = n.sendCertificationRequest(ctx, prop.NodeID.String(), stateSummary); err != nil {
 		return fmt.Errorf("certification request send failed, %w", err)

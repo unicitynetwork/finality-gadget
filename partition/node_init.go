@@ -134,7 +134,7 @@ func (n *Node) restoreBlockProposal(ctx context.Context) {
 	// apply stored proposal to current state
 	n.log.DebugContext(ctx, "Stored block proposal extends the previous state")
 
-	state, err := n.transactionSystem.ApplyBlock(uc.GetRoundNumber(), uc.InputRecord.Hash)
+	state, err := n.transactionSystem.FollowerVerify(ctx, uc.GetRoundNumber(), uc.InputRecord.Hash)
 	if err != nil {
 		n.log.WarnContext(ctx, "Block proposal recovery failed", logger.Error(err))
 		n.revertState()

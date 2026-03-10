@@ -16,7 +16,7 @@ func (n *Node) handleCertificationResponse(ctx context.Context, cr *certificatio
 	if err := cr.IsValid(); err != nil {
 		return fmt.Errorf("invalid CertificationResponse: %w", err)
 	}
-	n.log.InfoContext(ctx, fmt.Sprintf("handleCertificationResponse: UC round %d, next round %d, next leader %s",
+	n.log.DebugContext(ctx, fmt.Sprintf("handleCertificationResponse: UC round %d, next round %d, next leader %s",
 		cr.UC.GetRoundNumber(), cr.Technical.Round, cr.Technical.Leader))
 
 	if cr.Partition != n.PartitionID() || !cr.Shard.Equal(n.ShardID()) {

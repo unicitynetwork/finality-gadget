@@ -67,6 +67,7 @@ func main() {
 
 	rootCmd.AddCommand(newRunCmd(flags))
 	rootCmd.AddCommand(newBlockCmd(flags))
+	rootCmd.AddCommand(newPowCmd(flags))
 
 	if err := rootCmd.ExecuteContext(ctx); err != nil && !cancelledByQuitSignal(ctx) {
 		fmt.Fprintln(os.Stderr, "Error:", err)
