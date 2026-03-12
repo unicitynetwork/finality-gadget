@@ -55,7 +55,7 @@ bootNodeId=$(../bft-core/build/ubft node-id --home test-nodes/root1 | tail -n1)
 ../bft-core/build/ubft shard-node init --home test-nodes/fgp2 --generate
 ../bft-core/build/ubft shard-node init --home test-nodes/fgp3 --generate
 
-../bft-core/build/ubft shard-conf generate --home test-nodes --network-id $networkId --partition-id $partitionId --partition-type-id $partitionTypeId --epoch $shardEpoch --epoch-start $shardEpochStart --node-info test-nodes/fgp1/node-info.json --node-info test-nodes/fgp2/node-info.json --node-info test-nodes/fgp3/node-info.json --partition-params dFG=6
+../bft-core/build/ubft shard-conf generate --home test-nodes --network-id $networkId --partition-id $partitionId --partition-type-id $partitionTypeId --epoch $shardEpoch --epoch-start $shardEpochStart --node-info test-nodes/fgp1/node-info.json --node-info test-nodes/fgp2/node-info.json --node-info test-nodes/fgp3/node-info.json --partition-params dFG=6 --t2-timeout 43200000
 
 # upload FGP shard config to BFT nodes
 echo "waiting for BFT nodes to start..."

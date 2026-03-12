@@ -22,7 +22,7 @@ import (
 const (
 	KeyAlgorithmSecp256k1 = "secp256k1"
 
-	DefaultT1Timeout                       = 750
+	DefaultT1Timeout                       = 8640000 // 2.4h
 	DefaultReplicationMaxBlocks     uint64 = 1000
 	DefaultLedgerReplicationTimeout        = 1500 * time.Millisecond
 )

@@ -7,8 +7,6 @@ import (
 	"fmt"
 
 	"github.com/unicitynetwork/bft-go-base/types"
-
-	"github.com/unicitynetwork/finality-gadget/txsystem/state"
 )
 
 func (n *Node) handleBlock(ctx context.Context, b *types.Block) error {
@@ -61,7 +59,7 @@ func (n *Node) handleBlock(ctx context.Context, b *types.Block) error {
 			blockUC.InputRecord.PreviousHash, state.Root())
 	}
 
-	if err = verifyTxSystemState(state, blockUC.InputRecord); err != nil {
+	if err = state.EqualsIR(blockUC.InputRecord); err != nil {
 		n.revertState()
 		return fmt.Errorf("failed to verify block %v state: %w", blockUC.GetRoundNumber(), err)
 	}
@@ -83,23 +81,4 @@ func getUCv1(b *types.Block) (*types.UnicityCertificate, error) {
 	}
 	uc := &types.UnicityCertificate{Version: 1}
 	return uc, types.Cbor.Unmarshal(b.UnicityCertificate, uc)
-}
-
-func verifyTxSystemState(state *state.Summary, ucIR *types.InputRecord) error {
-	if ucIR == nil {
-		return errors.New("unicity certificate input record is nil")
-	}
-	if !bytes.Equal(ucIR.Hash, state.Root()) {
-		return fmt.Errorf("transaction system state %X is not equal to unicity certificate value %X", state.Root(), ucIR.Hash)
-	}
-	if !bytes.Equal(ucIR.SummaryValue, state.SummaryValue()) {
-		return fmt.Errorf("transaction system summary value %X not equal to unicity certificate value %X", state.SummaryValue(), ucIR.SummaryValue)
-	}
-	if ucIR.SumOfEarnedFees != state.SumOfEarnedFees() {
-		return fmt.Errorf("transaction system sum of earned fees %d not equal to unicity certificate value %d", state.SumOfEarnedFees(), ucIR.SumOfEarnedFees)
-	}
-	if !bytes.Equal(ucIR.ETHash, state.ETHash()) {
-		return fmt.Errorf("transaction system executed transactions buffer hash '%X' not equal to unicity certificate value '%X'", state.ETHash(), ucIR.ETHash)
-	}
-	return nil
 }

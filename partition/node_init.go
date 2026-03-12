@@ -140,7 +140,7 @@ func (n *Node) restoreBlockProposal(ctx context.Context) {
 		n.revertState()
 		return
 	}
-	if err = verifyTxSystemState(state, uc.InputRecord); err != nil {
+	if err = state.EqualsIR(uc.InputRecord); err != nil {
 		n.log.WarnContext(ctx, fmt.Sprintf("Block proposal recovery failed, state mismatch: %v", err))
 		n.revertState()
 		return

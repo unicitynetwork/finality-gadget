@@ -88,8 +88,6 @@ func newRunCmd(flags *cliFlags) *cobra.Command {
 	runCmd.Flags().Uint32Var(&flags.LedgerReplicationTimeoutMs, "ledger-replication-timeout", 1500, "time since last received replication response when to trigger another request (in ms)")
 	runCmd.Flags().Uint32Var(&flags.T1TimeoutMs, "t1-timeout", partition.DefaultT1Timeout, "T1 timeout (consensus parameter)")
 
-	runCmd.Flags().MarkHidden("t1-timeout")
-
 	return runCmd
 }
 
