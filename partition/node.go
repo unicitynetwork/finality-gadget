@@ -43,6 +43,9 @@ type (
 		// FollowerVerify is called by followers to validate the proposed block.
 		FollowerVerify(ctx context.Context, round uint64, proposedRoot []byte) (*state.Summary, error)
 
+		// RestoreState restores the transaction system state from the given UC
+		RestoreState(ctx context.Context, uc *types.UnicityCertificate) error
+
 		// Revert signals an unsuccessful consensus round.
 		Revert()
 
@@ -182,12 +185,23 @@ func (n *Node) handleEpochChangeEvent(ctx context.Context) {
 // handleMonitoring - monitors root communication, if for no UC is
 // received for a long time then try and request one from root
 func (n *Node) handleMonitoring(ctx context.Context, lastUCReceived, lastBlockReceived time.Time) {
-	// check if we have not heard from root validator for T2 timeout + 1 sec
-	// a new repeat UC must have been made by now (assuming root is fine) try and get it from other root nodes
-	if time.Since(lastUCReceived) > n.shardConf.Load().T2Timeout+time.Second {
-		// query latest UC from root
-		n.sendHandshake(ctx)
+	// During application startup the initial handshake message may be lost,
+	// so we retry it here, otherwise we would have to wait for T2 timeout (12h).
+	if n.state.status == initializing {
+		if time.Since(lastUCReceived) > 5*time.Second {
+			n.log.DebugContext(ctx, "Still initializing, retrying handshake to root nodes")
+			n.sendHandshake(ctx)
+		}
+	} else {
+		// check if we have not heard from root validator for T2 timeout + 1 sec
+		// a new repeat UC must have been made by now (assuming root is fine) try and get it from other root nodes
+		if time.Since(lastUCReceived) > n.shardConf.Load().T2Timeout+time.Second {
+			// query latest UC from root
+			n.log.DebugContext(ctx, "T2 timeout exceeded without receiving UC, requesting from root nodes")
+			n.sendHandshake(ctx)
+		}
 	}
+
 	// handle ledger replication timeout - no response from node is received
 	if n.state.status == recovering && time.Since(n.lastLedgerReqTime) > n.conf.replicationConfig.timeout {
 		n.log.WarnContext(ctx, "Ledger replication timeout, repeat request")

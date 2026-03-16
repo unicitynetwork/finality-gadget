@@ -184,6 +184,30 @@ func (s *FGPTxSystem) FollowerVerify(ctx context.Context, round uint64, proposed
 	return state.NewStateSummary(s.pendingStateHash, s.summaryValue, s.sumOfEarnedFees, s.etHash), nil
 }
 
+func (s *FGPTxSystem) RestoreState(ctx context.Context, uc *types.UnicityCertificate) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	stateHash := uc.GetStateHash()
+
+	// fetch committedStateHeight from PoW node since we don't store PoW height (currently only used for logging)
+	if len(stateHash) > 0 {
+		stateHashHex := hex.EncodeToString(stateHash)
+		block, err := s.powClient.GetBlockHeaderByHash(ctx, stateHashHex)
+		if err != nil {
+			return fmt.Errorf("failed to get block by hash '%s': %w", stateHashHex, err)
+		}
+		s.committedStateHeight = block.Height
+	}
+
+	s.committedStateHash = stateHash
+	s.committedUC = uc
+	s.pendingStateHash = nil
+	s.pendingStateHeight = 0
+
+	return nil
+}
+
 func (s *FGPTxSystem) Revert() {
 	s.mu.Lock()
 	defer s.mu.Unlock()

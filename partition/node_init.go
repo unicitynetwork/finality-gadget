@@ -3,13 +3,11 @@ package partition
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/unicitynetwork/bft-go-base/types"
-	"github.com/unicitynetwork/bft-go-base/util"
 
 	"github.com/unicitynetwork/finality-gadget/logger"
 	"github.com/unicitynetwork/finality-gadget/network"
@@ -64,28 +62,43 @@ func NewNode(ctx context.Context, txSystem TransactionSystem, conf *NodeConf, lo
 }
 
 func (n *Node) initState(ctx context.Context) (err error) {
+	dbIt := n.blockStore.Last()
+	defer func() {
+		if err := dbIt.Close(); err != nil {
+			n.log.WarnContext(ctx, "closing DB iterator", logger.Error(err))
+		}
+	}()
+
+	if dbIt.Valid() {
+		var b types.Block
+		if err = dbIt.Value(&b); err != nil {
+			return fmt.Errorf("failed to read latest block from db: %w", err)
+		}
+
+		uc, err := getUCv1(&b)
+		if err != nil {
+			return fmt.Errorf("failed to extract UC from latest block: %w", err)
+		}
+
+		shardConf, err := n.shardConfStore.Get(uc.GetShardEpoch())
+		if err != nil {
+			return fmt.Errorf("failed to load shard conf for epoch %d: %w", uc.GetShardEpoch(), err)
+		}
+		n.shardConf.Store(shardConf)
+
+		if err = n.transactionSystem.RestoreState(ctx, uc); err != nil {
+			return fmt.Errorf("failed to restore transaction system state: %w", err)
+		}
+	}
+
 	// Genesis state has not been committed with a UC, so fuc/luc can be nil initially.
 	n.state.fuc = n.committedUC()
 	n.state.luc = n.state.fuc
 
-	// Apply blocks that build on the loaded state. Never look further back from this starting point.
-	dbIt := n.blockStore.Find(util.Uint64ToBytes(n.state.fuc.GetRoundNumber() + 1))
-	defer func() { err = errors.Join(err, dbIt.Close()) }()
-	for ; dbIt.Valid(); dbIt.Next() {
-		var b types.Block
-		roundNo := util.BytesToUint64(dbIt.Key())
-		if err = dbIt.Value(&b); err != nil {
-			return fmt.Errorf("failed to read block %v from db: %w", roundNo, err)
-		}
-		if err = n.handleBlock(ctx, &b); err != nil {
-			return fmt.Errorf("failed to handle block %v: %w", roundNo, err)
-		}
-	}
-
 	n.log.InfoContext(ctx, fmt.Sprintf("State initialized from persistent store up to round %d", n.committedUC().GetRoundNumber()))
 	n.restoreBlockProposal(ctx)
 
-	return err
+	return nil
 }
 
 func (n *Node) initNetwork(ctx context.Context, peerConf *network.PeerConfiguration) error {
