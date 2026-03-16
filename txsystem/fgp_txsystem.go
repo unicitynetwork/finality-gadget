@@ -56,6 +56,25 @@ func NewFGPTxSystem(shardConf types.PartitionDescriptionRecord, powClient powtyp
 	}, nil
 }
 
+func (s *FGPTxSystem) UpdateConfig(shardConf *types.PartitionDescriptionRecord) error {
+	dFGString, found := shardConf.PartitionParams["dFG"]
+	if !found {
+		return errors.New("dFG not defined in shard conf")
+	}
+	dFG, err := strconv.ParseUint(dFGString, 10, 64)
+	if err != nil {
+		return fmt.Errorf("non numeric dFG defined in shard conf: %w", err)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.shardConf = *shardConf
+	s.dFG = dFG
+
+	return nil
+}
+
 func (s *FGPTxSystem) StateSummary() (*state.Summary, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

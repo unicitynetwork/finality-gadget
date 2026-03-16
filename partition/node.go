@@ -46,6 +46,9 @@ type (
 		// RestoreState restores the transaction system state from the given UC
 		RestoreState(ctx context.Context, uc *types.UnicityCertificate) error
 
+		// UpdateConfig updates the transaction system configuration.
+		UpdateConfig(shardConf *types.PartitionDescriptionRecord) error
+
 		// Revert signals an unsuccessful consensus round.
 		Revert()
 
@@ -180,6 +183,10 @@ func (n *Node) handleEpochChangeEvent(ctx context.Context) {
 	}
 
 	n.shardConf.Store(shardConf)
+
+	if err := n.transactionSystem.UpdateConfig(shardConf); err != nil {
+		n.log.ErrorContext(ctx, fmt.Sprintf("failed to update transaction system config for epoch %d", newEpoch), logger.Error(err))
+	}
 }
 
 // handleMonitoring - monitors root communication, if for no UC is

@@ -86,6 +86,10 @@ func (n *Node) initState(ctx context.Context) (err error) {
 		}
 		n.shardConf.Store(shardConf)
 
+		if err = n.transactionSystem.UpdateConfig(shardConf); err != nil {
+			return fmt.Errorf("failed to update transaction system config: %w", err)
+		}
+
 		if err = n.transactionSystem.RestoreState(ctx, uc); err != nil {
 			return fmt.Errorf("failed to restore transaction system state: %w", err)
 		}
