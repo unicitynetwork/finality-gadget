@@ -66,6 +66,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string,
 			PreviousBlockHash: n.committedUC().GetBlockHash(),
 		},
 		UnicityCertificate: ucBytes,
+		Transactions:       make([]*types.TransactionRecord, 0), // nil not allowed in Block#IsValid method
 	}
 	ir, err := pendingProposal.CalculateBlockHash(n.conf.hashAlgorithm)
 	if err != nil {

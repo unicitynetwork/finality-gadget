@@ -59,7 +59,13 @@ func (n *Node) handleBlock(ctx context.Context, b *types.Block) error {
 			blockUC.InputRecord.PreviousHash, state.Root())
 	}
 
-	if err = state.EqualsIR(blockUC.InputRecord); err != nil {
+	newState, err := n.transactionSystem.FollowerVerify(ctx, blockUC.GetRoundNumber(), blockUC.InputRecord.Hash)
+	if err != nil {
+		n.revertState()
+		return fmt.Errorf("failed to verify block %v: %w", blockUC.GetRoundNumber(), err)
+	}
+
+	if err = newState.EqualsIR(blockUC.InputRecord); err != nil {
 		n.revertState()
 		return fmt.Errorf("failed to verify block %v state: %w", blockUC.GetRoundNumber(), err)
 	}
