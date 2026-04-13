@@ -92,8 +92,11 @@ func (c *IPCClient) call(ctx context.Context, method string, params []interface{
 		return nil
 	}
 
-	// Limit response size to 5MB to prevent OOM
-	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 5*1024*1024))
+	// wrap resp.Body with MaxBytesReader to limit response size
+	resp.Body = http.MaxBytesReader(nil, resp.Body, 5*1024*1024)
+
+	// read all bytes to be able to log the response if error occurs
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
