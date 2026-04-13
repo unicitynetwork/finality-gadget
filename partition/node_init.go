@@ -40,7 +40,6 @@ func NewNode(ctx context.Context, txSystem TransactionSystem, conf *NodeConf, lo
 		lastLedgerReqTime: time.Time{},
 		log:               log,
 	}
-	n.timer.stop.Store(func() {})
 
 	shardConf, err := n.shardConfStore.GetFirst()
 	if err != nil {

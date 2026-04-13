@@ -9,25 +9,45 @@ import (
 
 func (n *Node) startNewRound(ctx context.Context) error {
 	n.resetProposal()
-	n.startT1Timer(ctx)
 
 	// not a fatal issue, but log anyway
 	n.deletePendingProposal(ctx)
 	return nil
 }
 
-func (n *Node) startT1Timer(ctx context.Context) {
-	// stop existing timer
-	if stopFunc, ok := n.timer.stop.Load().(func()); ok && stopFunc != nil {
-		stopFunc()
+func (n *Node) ensureT1TimerState(ctx context.Context) {
+	isLeader := n.state.leader == n.peer.ID()
+	shouldBeRunning := isLeader && n.state.status != recovering
+	isRunning := n.timer.isRunning.Load()
+
+	if shouldBeRunning && !isRunning {
+		n.startT1Timer(ctx)
+	} else if !shouldBeRunning && isRunning {
+		n.stopT1Timer()
 	}
+}
+
+func (n *Node) stopT1Timer() {
+	if n.timer.cancel != nil {
+		n.timer.cancel()
+		n.timer.cancel = nil
+	}
+	n.timer.isRunning.Store(false)
+}
+
+func (n *Node) startT1Timer(ctx context.Context) {
+	n.stopT1Timer()
 
 	txCtx, txCancel := context.WithCancel(ctx)
-	n.timer.stop.Store(func() { txCancel() })
+	n.timer.cancel = txCancel
+	n.timer.isRunning.Store(true)
 
 	go func() {
 		select {
 		case <-time.After(n.conf.t1Timeout):
+			// Mark as not running so that ensureT1TimerState can restart the timer
+			n.timer.isRunning.Store(false)
+
 			// Rather than call handleT1TimeoutEvent directly send signal to main
 			// loop - helps to avoid concurrency issues with (repeat) UC handling.
 			select {
@@ -40,11 +60,6 @@ func (n *Node) startT1Timer(ctx context.Context) {
 }
 
 func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
-	if stopFunc, ok := n.timer.stop.Load().(func()); ok && stopFunc != nil {
-		stopFunc()
-	}
-	n.timer.stop.Store(func() {})
-
 	if n.state.status == recovering {
 		n.log.InfoContext(ctx, "T1 timeout: node is recovering")
 		return
@@ -67,10 +82,13 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 
 	if err := n.sendBlockProposal(ctx, stateSummary.Root()); err != nil {
 		n.log.WarnContext(ctx, "Failed to send BlockProposal", logger.Error(err))
+		n.transactionSystem.Revert()
 		return
 	}
 
 	if err := n.sendCertificationRequest(ctx, n.peer.ID().String(), stateSummary); err != nil {
 		n.log.WarnContext(ctx, "Failed to send certification request", logger.Error(err))
+		n.transactionSystem.Revert()
+		return
 	}
 }

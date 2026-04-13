@@ -60,8 +60,9 @@ type (
 	}
 
 	roundTimer struct {
-		stop  atomic.Value
-		event chan struct{}
+		isRunning atomic.Bool
+		cancel    context.CancelFunc
+		event     chan struct{}
 	}
 
 	// Node represents a member in the partition and implements an instance of a specific TransactionSystem.
@@ -151,6 +152,9 @@ func (n *Node) loop(ctx context.Context) error {
 		case <-ticker.C:
 			n.handleMonitoring(ctx, lastUCReceived, lastBlockReceived)
 		}
+
+		// central location to manage T1 timeout
+		n.ensureT1TimerState(ctx)
 	}
 }
 
