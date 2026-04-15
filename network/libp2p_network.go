@@ -105,6 +105,11 @@ func (n *LibP2PNetwork) Send(ctx context.Context, msg any, receivers ...peer.ID)
 func (n *LibP2PNetwork) SendMsgs(ctx context.Context, messages MsgQueue, receiver peer.ID) (resErr error) {
 	var stream libp2pNetwork.Stream
 	var err error
+	defer func() {
+		if stream != nil {
+			stream.Close()
+		}
+	}()
 	for messages.Len() > 0 {
 		msg := messages.PopFront()
 		// create a stream with first message
