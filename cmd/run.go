@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/unicitynetwork/bft-core/keyvaluedb"
 	"github.com/unicitynetwork/bft-core/keyvaluedb/boltdb"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-go-base/types"
@@ -135,6 +134,7 @@ func runNode(ctx context.Context, flags *cliFlags, cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
+	defer shardConfDB.Close()
 	shardConfStore, err := partition.NewShardConfStore(shardConfDB, log)
 	if err != nil {
 		return err
@@ -174,6 +174,7 @@ func runNode(ctx context.Context, flags *cliFlags, cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
+	defer trustBaseDB.Close()
 	trustBaseStore, err := trustbase.NewTrustBaseStore(trustBaseDB, log)
 	if err != nil {
 		return fmt.Errorf("failed to create trust base store: %w", err)
@@ -191,6 +192,7 @@ func runNode(ctx context.Context, flags *cliFlags, cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
+	defer blockDB.Close()
 
 	bootstrapConnectRetry := &network.BootstrapConnectRetry{
 		Count: flags.BootstrapConnectRetryCount,
@@ -238,7 +240,7 @@ func (f *cliFlags) pathWithDefault(path string, defaultFileName string) string {
 	return filepath.Join(f.HomeDir, defaultFileName)
 }
 
-func (f *cliFlags) initDB(path string, defaultFileName string) (keyvaluedb.KeyValueDB, error) {
+func (f *cliFlags) initDB(path string, defaultFileName string) (*boltdb.BoltDB, error) {
 	path = f.pathWithDefault(path, defaultFileName)
 	db, err := boltdb.New(path)
 	if err != nil {
