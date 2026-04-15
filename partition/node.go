@@ -108,7 +108,7 @@ type (
 
 func (n *Node) Run(ctx context.Context) error {
 	if err := n.network.RegisterValidatorProtocols(); err != nil {
-		n.log.ErrorContext(ctx, "Failed to register validator protocols", logger.Error(err))
+		return fmt.Errorf("failed to register validator protocols: %w", err)
 	}
 	n.sendHandshake(ctx)
 
