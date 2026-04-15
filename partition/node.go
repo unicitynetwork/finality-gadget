@@ -59,6 +59,11 @@ type (
 		CommittedUC() *types.UnicityCertificate
 	}
 
+	replicationRequest struct {
+		ctx context.Context
+		req *replication.LedgerReplicationRequest
+	}
+
 	roundTimer struct {
 		isRunning atomic.Bool
 		cancel    context.CancelFunc
@@ -81,6 +86,7 @@ type (
 		// ---- recovery ----
 		recoveryLastProp  *blockproposal.BlockProposal
 		lastLedgerReqTime time.Time
+		replicationCh     chan replicationRequest
 
 		// ---- persistence ----
 		blockStore     keyvaluedb.KeyValueDB
@@ -112,6 +118,11 @@ func (n *Node) Run(ctx context.Context) error {
 		err := n.loop(ctx)
 		n.log.DebugContext(ctx, "node main loop exit", logger.Error(err))
 		return err
+	})
+
+	g.Go(func() error {
+		n.replicationLoop(ctx)
+		return nil
 	})
 
 	return g.Wait()

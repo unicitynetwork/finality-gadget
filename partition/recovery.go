@@ -128,49 +128,78 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 		return n.sendLedgerReplicationResponse(ctx, resp, lr.NodeID)
 	}
 	n.log.DebugContext(ctx, fmt.Sprintf("Preparing replication response from block %d", startBlock))
-	go func() {
-		blocks := make([]*types.Block, 0)
-		blockCnt := uint64(0)
-		dbIt := n.blockStore.Find(util.Uint64ToBytes(startBlock))
-		defer func() {
-			if err := dbIt.Close(); err != nil {
-				n.log.WarnContext(ctx, "closing DB iterator", logger.Error(err))
-			}
-		}()
-		var firstFetchedBlockNumber uint64
-		var lastFetchedBlockNumber uint64
-		var lastFetchedBlock *types.Block
-		for ; dbIt.Valid(); dbIt.Next() {
-			var bl types.Block
-			roundNo := util.BytesToUint64(dbIt.Key())
-			if err := dbIt.Value(&bl); err != nil {
-				n.log.WarnContext(ctx, fmt.Sprintf("Ledger replication reply incomplete, failed to read block %d", roundNo), logger.Error(err))
-				break
-			}
-			lastFetchedBlock = &bl
-			if firstFetchedBlockNumber == 0 {
-				firstFetchedBlockNumber = roundNo
-			}
-			lastFetchedBlockNumber = roundNo
-			blocks = append(blocks, lastFetchedBlock)
-			blockCnt++
-			if blockCnt >= n.conf.replicationConfig.maxReturnBlocks ||
-				(roundNo >= lr.EndBlockNumber && lr.EndBlockNumber > 0) {
-				break
-			}
-		}
+	select {
+	case n.replicationCh <- replicationRequest{ctx: ctx, req: lr}:
+		// worker will process
+	default:
 		resp := &replication.LedgerReplicationResponse{
-			UUID:             lr.UUID,
-			Status:           replication.Ok,
-			Blocks:           blocks,
-			FirstBlockNumber: firstFetchedBlockNumber,
-			LastBlockNumber:  lastFetchedBlockNumber,
+			UUID:    lr.UUID,
+			Status:  replication.Busy,
+			Message: "Too many concurrent replication requests",
 		}
-		if err := n.sendLedgerReplicationResponse(ctx, resp, lr.NodeID); err != nil {
-			n.log.WarnContext(ctx, fmt.Sprintf("Problem sending ledger replication response, %s", resp.Pretty()), logger.Error(err))
+		return n.sendLedgerReplicationResponse(ctx, resp, lr.NodeID)
+	}
+	return nil
+}
+
+func (n *Node) replicationLoop(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case r := <-n.replicationCh:
+			n.processReplicationRequest(r.ctx, r.req)
+		}
+	}
+}
+
+func (n *Node) processReplicationRequest(ctx context.Context, lr *replication.LedgerReplicationRequest) {
+	startBlock := lr.BeginBlockNumber
+	blocks := make([]*types.Block, 0)
+	blockCnt := uint64(0)
+	dbIt := n.blockStore.Find(util.Uint64ToBytes(startBlock))
+	defer func() {
+		if err := dbIt.Close(); err != nil {
+			n.log.WarnContext(ctx, "closing DB iterator", logger.Error(err))
 		}
 	}()
-	return nil
+	var firstFetchedBlockNumber uint64
+	var lastFetchedBlockNumber uint64
+	var lastFetchedBlock *types.Block
+	for ; dbIt.Valid(); dbIt.Next() {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		var bl types.Block
+		roundNo := util.BytesToUint64(dbIt.Key())
+		if err := dbIt.Value(&bl); err != nil {
+			n.log.WarnContext(ctx, fmt.Sprintf("Ledger replication reply incomplete, failed to read block %d", roundNo), logger.Error(err))
+			break
+		}
+		lastFetchedBlock = &bl
+		if firstFetchedBlockNumber == 0 {
+			firstFetchedBlockNumber = roundNo
+		}
+		lastFetchedBlockNumber = roundNo
+		blocks = append(blocks, lastFetchedBlock)
+		blockCnt++
+		if blockCnt >= n.conf.replicationConfig.maxReturnBlocks ||
+			(roundNo >= lr.EndBlockNumber && lr.EndBlockNumber > 0) {
+			break
+		}
+	}
+	resp := &replication.LedgerReplicationResponse{
+		UUID:             lr.UUID,
+		Status:           replication.Ok,
+		Blocks:           blocks,
+		FirstBlockNumber: firstFetchedBlockNumber,
+		LastBlockNumber:  lastFetchedBlockNumber,
+	}
+	if err := n.sendLedgerReplicationResponse(ctx, resp, lr.NodeID); err != nil {
+		n.log.WarnContext(ctx, fmt.Sprintf("Problem sending ledger replication response, %s", resp.Pretty()), logger.Error(err))
+	}
 }
 
 // handleLedgerReplicationResponse handles ledger replication responses from other partition nodes.
