@@ -43,6 +43,9 @@ func NewFGPTxSystem(shardConf types.PartitionDescriptionRecord, powClient powtyp
 	if err != nil {
 		return nil, fmt.Errorf("non numeric dFG defined in shard conf: %w", err)
 	}
+	if dFG == 0 {
+		return nil, errors.New("dFG must be greater than 0")
+	}
 	return &FGPTxSystem{
 		log:                log,
 		shardConf:          shardConf,
@@ -64,6 +67,9 @@ func (s *FGPTxSystem) UpdateConfig(shardConf *types.PartitionDescriptionRecord) 
 	dFG, err := strconv.ParseUint(dFGString, 10, 64)
 	if err != nil {
 		return fmt.Errorf("non numeric dFG defined in shard conf: %w", err)
+	}
+	if dFG == 0 {
+		return errors.New("dFG must be greater than 0")
 	}
 
 	s.mu.Lock()
@@ -146,6 +152,10 @@ func (s *FGPTxSystem) LeaderPropose(ctx context.Context, round uint64) (*state.S
 		if t.Status == "active" {
 			continue
 		}
+		// sanity check: in a valid PoW chain, branchlen can never exceed height
+		if t.BranchLen > t.Height {
+			return nil, fmt.Errorf("invalid chain tip: branch length %d exceeds height %d", t.BranchLen, t.Height)
+		}
 		forkHeight := t.Height - t.BranchLen
 		if t.Height >= candidateHeight && forkHeight < candidateHeight {
 			return nil, fmt.Errorf("competing fork visible: branch at height %d diverged at %d", t.Height, forkHeight)
@@ -193,6 +203,10 @@ func (s *FGPTxSystem) FollowerVerify(ctx context.Context, round uint64, proposed
 	}
 
 	// 4. Ensure the block has sufficient confirmations
+	// sanity check: tip should never be behind a block that the node returned as active
+	if tip.Height < block.Height {
+		return nil, fmt.Errorf("proposed block height %d is ahead of tip height %d", block.Height, tip.Height)
+	}
 	if tip.Height-block.Height < s.dFG-1 {
 		return nil, fmt.Errorf("proposed block does not have sufficient confirmations (depth %d, required %d)", tip.Height-block.Height, s.dFG)
 	}
