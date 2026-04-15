@@ -22,7 +22,6 @@ type FGPTxSystem struct {
 	log                  *slog.Logger
 	shardConf            types.PartitionDescriptionRecord
 	powClient            powtypes.Client
-	genesisHash          []byte // genesis hash is nil
 	dFG                  uint64 // number of PoW confirmations required for finalization
 	committedStateHash   []byte // PoW block hash
 	committedStateHeight uint64 // PoW block height
@@ -52,7 +51,6 @@ func NewFGPTxSystem(shardConf types.PartitionDescriptionRecord, powClient powtyp
 		powClient:          powClient,
 		dFG:                dFG,
 		committedStateHash: nil,
-		genesisHash:        nil,      // initial UC hash is nil
 		summaryValue:       []byte{}, // always empty non-nil constant for FGP, nil is not allowed by the BFT nodes
 		sumOfEarnedFees:    0,        // always 0 for FGP
 		etHash:             nil,      // always nil for FGP
@@ -111,7 +109,7 @@ func (s *FGPTxSystem) LeaderPropose(ctx context.Context, round uint64) (*state.S
 	// 2. Find the height of the latest FG-certified PoW block (since we do not store them in blocks we have to query it)
 	// if no certified blocks yet (genesis block) then set hFG=0
 	var hFG uint64
-	if !bytes.Equal(s.pendingStateHash, s.genesisHash) {
+	if s.committedStateHash != nil {
 		hexHash := hex.EncodeToString(s.committedStateHash)
 		lastCertBlock, err := s.powClient.GetBlockHeaderByHash(ctx, hexHash)
 		if err != nil {
