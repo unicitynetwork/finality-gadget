@@ -120,10 +120,12 @@ func (n *Node) Run(ctx context.Context) error {
 		return err
 	})
 
-	g.Go(func() error {
-		n.replicationLoop(ctx)
-		return nil
-	})
+	for range n.conf.replicationConfig.maxWorkers {
+		g.Go(func() error {
+			n.replicationLoop(ctx)
+			return nil
+		})
+	}
 
 	return g.Wait()
 }

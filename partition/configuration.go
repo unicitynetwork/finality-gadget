@@ -11,9 +11,8 @@ import (
 	"github.com/unicitynetwork/bft-core/keyvaluedb"
 	"github.com/unicitynetwork/bft-core/keyvaluedb/memorydb"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
-	"github.com/unicitynetwork/bft-go-base/types"
-
 	bftcrypto "github.com/unicitynetwork/bft-go-base/crypto"
+	"github.com/unicitynetwork/bft-go-base/types"
 	"github.com/unicitynetwork/bft-go-base/types/hex"
 
 	"github.com/unicitynetwork/finality-gadget/network"
@@ -24,6 +23,7 @@ const (
 
 	DefaultT1Timeout                       = 8640000 // 2.4h
 	DefaultReplicationMaxBlocks     uint64 = 1000
+	DefaultReplicationMaxWorkers    uint64 = 10
 	DefaultLedgerReplicationTimeout        = 1500 * time.Millisecond
 )
 
@@ -84,6 +84,7 @@ type (
 	ledgerReplicationConfig struct {
 		maxFetchBlocks  uint64
 		maxReturnBlocks uint64
+		maxWorkers      uint64
 		timeout         time.Duration
 	}
 )
@@ -132,6 +133,7 @@ func NewNodeConf(
 		replicationConfig: ledgerReplicationConfig{
 			maxFetchBlocks:  DefaultReplicationMaxBlocks,
 			maxReturnBlocks: DefaultReplicationMaxBlocks,
+			maxWorkers:      DefaultReplicationMaxWorkers,
 			timeout:         DefaultLedgerReplicationTimeout,
 		},
 		t1Timeout: DefaultT1Timeout * time.Millisecond,
@@ -140,6 +142,10 @@ func NewNodeConf(
 
 	for _, option := range nodeOptions {
 		option(c)
+	}
+
+	if c.replicationConfig.maxWorkers < 1 {
+		return nil, errors.New("replication max workers must be at least 1")
 	}
 
 	return c, nil
@@ -175,10 +181,11 @@ func WithValidatorNetwork(validatorNetwork ValidatorNetwork) NodeOption {
 	}
 }
 
-func WithReplicationParams(maxFetchBlocks, maxReturnBlocks uint64, timeout time.Duration) NodeOption {
+func WithReplicationParams(maxFetchBlocks, maxReturnBlocks, maxWorkers uint64, timeout time.Duration) NodeOption {
 	return func(c *NodeConf) {
 		c.replicationConfig.maxFetchBlocks = maxFetchBlocks
 		c.replicationConfig.maxReturnBlocks = maxReturnBlocks
+		c.replicationConfig.maxWorkers = maxWorkers
 		c.replicationConfig.timeout = timeout
 	}
 }

@@ -116,6 +116,7 @@ func createTestNode(t *testing.T, opts testNodeOpts) (*Node, *MockValidatorNetwo
 		replicationConfig: ledgerReplicationConfig{
 			maxReturnBlocks: opts.maxReturnBlocks,
 			maxFetchBlocks:  1000,
+			maxWorkers:      1,
 			timeout:         1500 * time.Millisecond,
 		},
 		shardConfStore: shardConfStore,

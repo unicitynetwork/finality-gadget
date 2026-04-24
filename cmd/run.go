@@ -45,6 +45,7 @@ type cliFlags struct {
 
 	LedgerReplicationMaxBlocksFetch uint64
 	LedgerReplicationMaxBlocks      uint64
+	LedgerReplicationMaxWorkers     uint64
 	LedgerReplicationTimeoutMs      uint32
 	T1TimeoutMs                     uint32
 }
@@ -84,6 +85,7 @@ func newRunCmd(flags *cliFlags) *cobra.Command {
 	// Consensus & Replication Flags
 	runCmd.Flags().Uint64Var(&flags.LedgerReplicationMaxBlocksFetch, "ledger-replication-max-blocks-fetch", 1000, "maximum number of blocks to query in a single replication request")
 	runCmd.Flags().Uint64Var(&flags.LedgerReplicationMaxBlocks, "ledger-replication-max-blocks", 1000, "maximum number of blocks to return in a single replication response")
+	runCmd.Flags().Uint64Var(&flags.LedgerReplicationMaxWorkers, "ledger-replication-max-workers", 10, "number of concurrent replication request workers")
 	runCmd.Flags().Uint32Var(&flags.LedgerReplicationTimeoutMs, "ledger-replication-timeout", 1500, "time since last received replication response when to trigger another request (in ms)")
 	runCmd.Flags().Uint32Var(&flags.T1TimeoutMs, "t1-timeout", partition.DefaultT1Timeout, "T1 timeout (consensus parameter)")
 
@@ -208,7 +210,7 @@ func runNode(ctx context.Context, flags *cliFlags, cmd *cobra.Command) error {
 		partition.WithBootstrapAddresses(flags.BootstrapAddresses),
 		partition.WithBootstrapConnectRetry(bootstrapConnectRetry),
 		partition.WithBlockDB(blockDB),
-		partition.WithReplicationParams(flags.LedgerReplicationMaxBlocksFetch, flags.LedgerReplicationMaxBlocks, time.Duration(flags.LedgerReplicationTimeoutMs)*time.Millisecond),
+		partition.WithReplicationParams(flags.LedgerReplicationMaxBlocksFetch, flags.LedgerReplicationMaxBlocks, flags.LedgerReplicationMaxWorkers, time.Duration(flags.LedgerReplicationTimeoutMs)*time.Millisecond),
 		partition.WithT1Timeout(time.Duration(flags.T1TimeoutMs)*time.Millisecond),
 	)
 	if err != nil {

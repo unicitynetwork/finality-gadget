@@ -68,7 +68,7 @@ func TestNewNodeConf(t *testing.T) {
 		WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}),
 		WithBlockDB(blockDB),
 		WithT1Timeout(t1Timeout),
-		WithReplicationParams(1, 2, 1000),
+		WithReplicationParams(1, 2, 1, 1000),
 	)
 
 	require.NoError(t, err)
