@@ -11,7 +11,13 @@ import (
 	"github.com/unicitynetwork/bft-go-base/util"
 )
 
+const (
+	outputFormatJSON = "json"
+	outputFormatCBOR = "cbor"
+)
+
 func newBlockCmd(flags *cliFlags) *cobra.Command {
+	var outputFormat string
 	blockCmd := &cobra.Command{
 		Use:   "block <round>",
 		Args:  cobra.ExactArgs(1),
@@ -39,33 +45,45 @@ func newBlockCmd(flags *cliFlags) *cobra.Command {
 				return fmt.Errorf("block %v not found", round)
 			}
 
-			// Format for JSON output
-			type BlockForJSON struct {
-				Header             *types.Header              `json:"header"`
-				Transactions       []*types.TransactionRecord `json:"transactions"`
-				UnicityCertificate *types.UnicityCertificate  `json:"unicity_certificate"`
+			switch outputFormat {
+			case outputFormatCBOR:
+				cborBytes, err := types.Cbor.Marshal(b)
+				if err != nil {
+					return fmt.Errorf("failed to marshal block to CBOR: %w", err)
+				}
+				fmt.Printf("%x\n", cborBytes)
+			case outputFormatJSON:
+				// Format for JSON output
+				type BlockForJSON struct {
+					Header             *types.Header              `json:"header"`
+					Transactions       []*types.TransactionRecord `json:"transactions"`
+					UnicityCertificate *types.UnicityCertificate  `json:"unicity_certificate"`
+				}
+
+				blockJSON := BlockForJSON{
+					Header:       b.Header,
+					Transactions: b.Transactions,
+				}
+
+				// unicity certificate is stored as raw cbor bytes which we need to convert actual object
+				uc := &types.UnicityCertificate{Version: 1}
+				if err := types.Cbor.Unmarshal(b.UnicityCertificate, uc); err == nil {
+					blockJSON.UnicityCertificate = uc
+				}
+
+				output, err := json.MarshalIndent(blockJSON, "", "  ")
+				if err != nil {
+					return fmt.Errorf("failed to marshal block to JSON: %w", err)
+				}
+				fmt.Println(string(output))
+			default:
+				return fmt.Errorf("invalid output format %q, must be %q or %q", outputFormat, outputFormatJSON, outputFormatCBOR)
 			}
 
-			blockJSON := BlockForJSON{
-				Header:       b.Header,
-				Transactions: b.Transactions,
-			}
-
-			// unicity certificate is stored as raw cbor bytes which we need to convert actual object
-			uc := &types.UnicityCertificate{Version: 1}
-			if err := types.Cbor.Unmarshal(b.UnicityCertificate, uc); err == nil {
-				blockJSON.UnicityCertificate = uc
-			}
-
-			output, err := json.MarshalIndent(blockJSON, "", "  ")
-			if err != nil {
-				return fmt.Errorf("failed to marshal block to JSON: %w", err)
-			}
-
-			fmt.Println(string(output))
 			return nil
 		},
 	}
 	blockCmd.Flags().StringVar(&flags.BlockDBFile, "block-db", "", "path to the block database (default: $FGP_HOME/blocks.db)")
+	blockCmd.Flags().StringVar(&outputFormat, "output-format", outputFormatJSON, "output format: json|cbor")
 	return blockCmd
 }
