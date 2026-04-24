@@ -155,7 +155,7 @@ func (n *Node) replicationLoop(ctx context.Context) {
 
 func (n *Node) processReplicationRequest(ctx context.Context, lr *replication.LedgerReplicationRequest) {
 	startBlock := lr.BeginBlockNumber
-	blocks := make([]*types.Block, 0)
+	blocks := make([]*types.Block, 0, n.conf.replicationConfig.maxReturnBlocks)
 	blockCnt := uint64(0)
 	dbIt := n.blockStore.Find(util.Uint64ToBytes(startBlock))
 	defer func() {
