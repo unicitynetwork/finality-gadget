@@ -137,7 +137,7 @@ func (n *LibP2PNetwork) SendMsgs(ctx context.Context, messages MsgQueue, receive
 			return errors.Join(resErr, fmt.Errorf("stream write error: %w", err))
 		}
 	}
-	return nil
+	return resErr
 }
 
 func (n *LibP2PNetwork) sendAsync(ctx context.Context, protocol *sendProtocolData, msg any, receivers []peer.ID) error {
