@@ -14,8 +14,8 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
 	// use trust base store and generic storage implementation from bft-core for now
-	github.com/unicitynetwork/bft-core v1.0.2-0.20260316094447-b26e124a6938
-	github.com/unicitynetwork/bft-go-base v1.0.3-0.20260316092951-afcfbc83f42f
+	github.com/unicitynetwork/bft-core v1.1.1-0.20260422082945-ceceacd11b7a
+	github.com/unicitynetwork/bft-go-base v1.1.1-0.20260421100318-01ab63a83bf5
 	golang.org/x/sync v0.19.0
 	gopkg.in/yaml.v3 v3.0.1
 )

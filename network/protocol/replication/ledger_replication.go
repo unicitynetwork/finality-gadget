@@ -14,6 +14,7 @@ const (
 	WrongShard
 	BlocksNotFound
 	Unknown
+	Busy
 )
 
 var (
@@ -113,6 +114,8 @@ func (s Status) String() string {
 		return "Wrong Partition or Shard Identifier"
 	case Unknown:
 		return "Unknown"
+	case Busy:
+		return "Busy"
 	}
 	return "Unknown Status Code"
 }

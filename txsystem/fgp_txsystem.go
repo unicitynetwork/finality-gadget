@@ -22,7 +22,6 @@ type FGPTxSystem struct {
 	log                  *slog.Logger
 	shardConf            types.PartitionDescriptionRecord
 	powClient            powtypes.Client
-	genesisHash          []byte // genesis hash is nil
 	dFG                  uint64 // number of PoW confirmations required for finalization
 	committedStateHash   []byte // PoW block hash
 	committedStateHeight uint64 // PoW block height
@@ -43,13 +42,15 @@ func NewFGPTxSystem(shardConf types.PartitionDescriptionRecord, powClient powtyp
 	if err != nil {
 		return nil, fmt.Errorf("non numeric dFG defined in shard conf: %w", err)
 	}
+	if dFG == 0 {
+		return nil, errors.New("dFG must be greater than 0")
+	}
 	return &FGPTxSystem{
 		log:                log,
 		shardConf:          shardConf,
 		powClient:          powClient,
 		dFG:                dFG,
 		committedStateHash: nil,
-		genesisHash:        nil,      // initial UC hash is nil
 		summaryValue:       []byte{}, // always empty non-nil constant for FGP, nil is not allowed by the BFT nodes
 		sumOfEarnedFees:    0,        // always 0 for FGP
 		etHash:             nil,      // always nil for FGP
@@ -64,6 +65,9 @@ func (s *FGPTxSystem) UpdateConfig(shardConf *types.PartitionDescriptionRecord) 
 	dFG, err := strconv.ParseUint(dFGString, 10, 64)
 	if err != nil {
 		return fmt.Errorf("non numeric dFG defined in shard conf: %w", err)
+	}
+	if dFG == 0 {
+		return errors.New("dFG must be greater than 0")
 	}
 
 	s.mu.Lock()
@@ -105,7 +109,7 @@ func (s *FGPTxSystem) LeaderPropose(ctx context.Context, round uint64) (*state.S
 	// 2. Find the height of the latest FG-certified PoW block (since we do not store them in blocks we have to query it)
 	// if no certified blocks yet (genesis block) then set hFG=0
 	var hFG uint64
-	if !bytes.Equal(s.pendingStateHash, s.genesisHash) {
+	if s.committedStateHash != nil {
 		hexHash := hex.EncodeToString(s.committedStateHash)
 		lastCertBlock, err := s.powClient.GetBlockHeaderByHash(ctx, hexHash)
 		if err != nil {
@@ -145,6 +149,10 @@ func (s *FGPTxSystem) LeaderPropose(ctx context.Context, round uint64) (*state.S
 		// active chain is the main chain, safe to skip
 		if t.Status == "active" {
 			continue
+		}
+		// sanity check: in a valid PoW chain, branchlen can never exceed height
+		if t.BranchLen > t.Height {
+			return nil, fmt.Errorf("invalid chain tip: branch length %d exceeds height %d", t.BranchLen, t.Height)
 		}
 		forkHeight := t.Height - t.BranchLen
 		if t.Height >= candidateHeight && forkHeight < candidateHeight {
@@ -193,6 +201,10 @@ func (s *FGPTxSystem) FollowerVerify(ctx context.Context, round uint64, proposed
 	}
 
 	// 4. Ensure the block has sufficient confirmations
+	// sanity check: tip should never be behind a block that the node returned as active
+	if tip.Height < block.Height {
+		return nil, fmt.Errorf("proposed block height %d is ahead of tip height %d", block.Height, tip.Height)
+	}
 	if tip.Height-block.Height < s.dFG-1 {
 		return nil, fmt.Errorf("proposed block does not have sufficient confirmations (depth %d, required %d)", tip.Height-block.Height, s.dFG)
 	}
