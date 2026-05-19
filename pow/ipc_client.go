@@ -8,7 +8,8 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"regexp"
+	"sync/atomic"
+	"time"
 
 	"github.com/unicitynetwork/finality-gadget/pow/types"
 )
@@ -20,6 +21,7 @@ import (
 type IPCClient struct {
 	socketPath string
 	httpClient *http.Client
+	nextID     atomic.Int64
 }
 
 // NewIPCClient creates a new client that connects to the PoW node via a Unix socket.
@@ -27,10 +29,12 @@ func NewIPCClient(socketPath string) *IPCClient {
 	return &IPCClient{
 		socketPath: socketPath,
 		httpClient: &http.Client{
+			Timeout: 5 * time.Second,
 			// Configure the HTTP client to dial a unix socket instead of tcp
 			Transport: &http.Transport{
 				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-					return net.Dial("unix", socketPath)
+					var d net.Dialer
+					return d.DialContext(ctx, "unix", socketPath)
 				},
 			},
 		},
@@ -52,54 +56,60 @@ type jsonRpcResponse struct {
 	ID     int             `json:"id"`
 }
 
-// callRaw sends a JSON-RPC request and returns the raw response body.
-func (c *IPCClient) callRaw(ctx context.Context, method string, params []interface{}) ([]byte, error) {
+// call sends a JSON-RPC request to the PoW node.
+func (c *IPCClient) call(ctx context.Context, method string, params []interface{}, result interface{}) error {
+	reqID := int(c.nextID.Add(1))
 	reqBody := &jsonRpcRequest{
 		JSONRPC: "2.0",
 		Method:  method,
 		Params:  params,
-		ID:      1,
+		ID:      reqID,
 	}
 
 	payload, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+		return fmt.Errorf("failed to marshal request: %w", err)
 	}
 
 	// The URL doesn't strictly matter since the dialer forces the unix socket
 	req, err := http.NewRequestWithContext(ctx, "POST", "http://localhost/", bytes.NewReader(payload))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("rpc call failed: %w", err)
+		return fmt.Errorf("rpc call failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected http status: %s", resp.Status)
+		return fmt.Errorf("unexpected http status: %s", resp.Status)
 	}
 
 	if resp.Body == nil {
-		return []byte{}, nil
+		return nil
 	}
-	return io.ReadAll(resp.Body)
-}
 
-// call sends a JSON-RPC request to the PoW node.
-func (c *IPCClient) call(ctx context.Context, method string, params []interface{}, result interface{}) error {
-	bodyBytes, err := c.callRaw(ctx, method, params)
+	// wrap resp.Body with MaxBytesReader to limit response size
+	resp.Body = http.MaxBytesReader(nil, resp.Body, 5*1024*1024)
+
+	// read all bytes to be able to log the response if error occurs
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	var rpcResp jsonRpcResponse
 	if err := json.Unmarshal(bodyBytes, &rpcResp); err != nil {
 		return fmt.Errorf("failed to decode response: %w. Response body: %s", err, string(bodyBytes))
 	}
+
+	// TODO PoW node always returns ID=0
+	//if rpcResp.ID != reqID {
+	//	return fmt.Errorf("rpc response ID mismatch: expected %d, got %d", reqID, rpcResp.ID)
+	//}
 
 	if rpcResp.Error != nil {
 		return fmt.Errorf("rpc error: %v", rpcResp.Error)
@@ -117,24 +127,9 @@ func (c *IPCClient) call(ctx context.Context, method string, params []interface{
 // GetTip returns the current tip of the active PoW chain.
 func (c *IPCClient) GetTip(ctx context.Context) (*types.BlockHeader, error) {
 	// 1. Call getbestblockhash to get the hash of the current tip
-	bodyBytes, err := c.callRaw(ctx, "getbestblockhash", []interface{}{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get best block hash: %w", err)
-	}
-	bodyBytes = fixUnquotedResultString(bodyBytes)
-
-	var rpcResp jsonRpcResponse
-	if err := json.Unmarshal(bodyBytes, &rpcResp); err != nil {
-		return nil, fmt.Errorf("failed to decode getbestblockhash response: %w. Response body: %s", err, string(bodyBytes))
-	}
-
-	if rpcResp.Error != nil {
-		return nil, fmt.Errorf("getbestblockhash rpc error: %v", rpcResp.Error)
-	}
-
 	var hash string
-	if err := json.Unmarshal(rpcResp.Result, &hash); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal best block hash: %w", err)
+	if err := c.call(ctx, "getbestblockhash", []interface{}{}, &hash); err != nil {
+		return nil, fmt.Errorf("failed to get best block hash: %w", err)
 	}
 
 	// 2. Call getblockheader <tip_hash> to retrieve the block's details
@@ -167,24 +162,9 @@ func (c *IPCClient) GetChainTips(ctx context.Context) ([]types.ChainTip, error) 
 // GetBlockHeaderByHeight returns the block at a specific height in the active chain.
 func (c *IPCClient) GetBlockHeaderByHeight(ctx context.Context, height uint64) (*types.BlockHeader, error) {
 	// 1. Get the hash of the block at this height
-	bodyBytes, err := c.callRaw(ctx, "getblockhash", []interface{}{height})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get block hash for height %d: %w", height, err)
-	}
-	bodyBytes = fixUnquotedResultString(bodyBytes)
-
-	var rpcResp jsonRpcResponse
-	if err := json.Unmarshal(bodyBytes, &rpcResp); err != nil {
-		return nil, fmt.Errorf("failed to decode getblockhash response: %w. Response body: %s", err, string(bodyBytes))
-	}
-
-	if rpcResp.Error != nil {
-		return nil, fmt.Errorf("getblockhash rpc error: %v", rpcResp.Error)
-	}
-
 	var hash string
-	if err := json.Unmarshal(rpcResp.Result, &hash); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal block hash: %w", err)
+	if err := c.call(ctx, "getblockhash", []interface{}{height}, &hash); err != nil {
+		return nil, fmt.Errorf("failed to get block hash for height %d: %w", height, err)
 	}
 
 	// 2. Fetch the block info using the hash
@@ -194,12 +174,4 @@ func (c *IPCClient) GetBlockHeaderByHeight(ctx context.Context, height uint64) (
 	}
 
 	return block, nil
-}
-
-var unquotedHexResultRe = regexp.MustCompile(`("result"\s*:\s*)([a-fA-F0-9]+)(\s*[,}])`)
-
-// fixUnquotedResultString works around a bug in the PoW C++ node where
-// certain RPCs return an unquoted string, e.g. {"result":ead522...,"error":null,"id":0}
-func fixUnquotedResultString(bodyBytes []byte) []byte {
-	return unquotedHexResultRe.ReplaceAll(bodyBytes, []byte(`${1}"${2}"${3}`))
 }

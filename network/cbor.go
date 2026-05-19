@@ -20,6 +20,8 @@ func serializeMsg(msg any) ([]byte, error) {
 	return append(lengthBytes[:bytesWritten], data...), nil
 }
 
+const maxMsgSize = 16 * 1024 * 1024 // 16 MB
+
 func deserializeMsg(r io.Reader, msg any) error {
 	src := bufio.NewReader(r)
 	// read data length
@@ -29,6 +31,9 @@ func deserializeMsg(r io.Reader, msg any) error {
 	}
 	if length64 == 0 {
 		return fmt.Errorf("unexpected data length zero")
+	}
+	if length64 > maxMsgSize {
+		return fmt.Errorf("message size %d exceeds maximum %d", length64, maxMsgSize)
 	}
 
 	lengthInt64 := int64(length64) /* #nosec G115 its unlikely that value of length64 exceeds int64 max value */

@@ -59,9 +59,15 @@ type (
 		CommittedUC() *types.UnicityCertificate
 	}
 
+	replicationRequest struct {
+		ctx context.Context
+		req *replication.LedgerReplicationRequest
+	}
+
 	roundTimer struct {
-		stop  atomic.Value
-		event chan struct{}
+		isRunning atomic.Bool
+		cancel    context.CancelFunc
+		event     chan struct{}
 	}
 
 	// Node represents a member in the partition and implements an instance of a specific TransactionSystem.
@@ -80,6 +86,7 @@ type (
 		// ---- recovery ----
 		recoveryLastProp  *blockproposal.BlockProposal
 		lastLedgerReqTime time.Time
+		replicationCh     chan replicationRequest
 
 		// ---- persistence ----
 		blockStore     keyvaluedb.KeyValueDB
@@ -101,7 +108,7 @@ type (
 
 func (n *Node) Run(ctx context.Context) error {
 	if err := n.network.RegisterValidatorProtocols(); err != nil {
-		n.log.ErrorContext(ctx, "Failed to register validator protocols", logger.Error(err))
+		return fmt.Errorf("failed to register validator protocols: %w", err)
 	}
 	n.sendHandshake(ctx)
 
@@ -112,6 +119,13 @@ func (n *Node) Run(ctx context.Context) error {
 		n.log.DebugContext(ctx, "node main loop exit", logger.Error(err))
 		return err
 	})
+
+	for range n.conf.replicationConfig.maxWorkers {
+		g.Go(func() error {
+			n.replicationLoop(ctx)
+			return nil
+		})
+	}
 
 	return g.Wait()
 }
@@ -151,6 +165,9 @@ func (n *Node) loop(ctx context.Context) error {
 		case <-ticker.C:
 			n.handleMonitoring(ctx, lastUCReceived, lastBlockReceived)
 		}
+
+		// central location to manage T1 timeout
+		n.ensureT1TimerState(ctx)
 	}
 }
 

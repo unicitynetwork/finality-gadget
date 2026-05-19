@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/unicitynetwork/bft-core/keyvaluedb"
 	"github.com/unicitynetwork/bft-core/keyvaluedb/boltdb"
 	"github.com/unicitynetwork/bft-core/rootchain/consensus/trustbase"
 	"github.com/unicitynetwork/bft-go-base/types"
@@ -46,6 +45,7 @@ type cliFlags struct {
 
 	LedgerReplicationMaxBlocksFetch uint64
 	LedgerReplicationMaxBlocks      uint64
+	LedgerReplicationMaxWorkers     uint64
 	LedgerReplicationTimeoutMs      uint32
 	T1TimeoutMs                     uint32
 }
@@ -85,6 +85,7 @@ func newRunCmd(flags *cliFlags) *cobra.Command {
 	// Consensus & Replication Flags
 	runCmd.Flags().Uint64Var(&flags.LedgerReplicationMaxBlocksFetch, "ledger-replication-max-blocks-fetch", 1000, "maximum number of blocks to query in a single replication request")
 	runCmd.Flags().Uint64Var(&flags.LedgerReplicationMaxBlocks, "ledger-replication-max-blocks", 1000, "maximum number of blocks to return in a single replication response")
+	runCmd.Flags().Uint64Var(&flags.LedgerReplicationMaxWorkers, "ledger-replication-max-workers", 10, "number of concurrent replication request workers")
 	runCmd.Flags().Uint32Var(&flags.LedgerReplicationTimeoutMs, "ledger-replication-timeout", 1500, "time since last received replication response when to trigger another request (in ms)")
 	runCmd.Flags().Uint32Var(&flags.T1TimeoutMs, "t1-timeout", partition.DefaultT1Timeout, "T1 timeout (consensus parameter)")
 
@@ -135,6 +136,7 @@ func runNode(ctx context.Context, flags *cliFlags, cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
+	defer shardConfDB.Close()
 	shardConfStore, err := partition.NewShardConfStore(shardConfDB, log)
 	if err != nil {
 		return err
@@ -174,6 +176,7 @@ func runNode(ctx context.Context, flags *cliFlags, cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
+	defer trustBaseDB.Close()
 	trustBaseStore, err := trustbase.NewTrustBaseStore(trustBaseDB, log)
 	if err != nil {
 		return fmt.Errorf("failed to create trust base store: %w", err)
@@ -191,6 +194,7 @@ func runNode(ctx context.Context, flags *cliFlags, cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
+	defer blockDB.Close()
 
 	bootstrapConnectRetry := &network.BootstrapConnectRetry{
 		Count: flags.BootstrapConnectRetryCount,
@@ -206,7 +210,7 @@ func runNode(ctx context.Context, flags *cliFlags, cmd *cobra.Command) error {
 		partition.WithBootstrapAddresses(flags.BootstrapAddresses),
 		partition.WithBootstrapConnectRetry(bootstrapConnectRetry),
 		partition.WithBlockDB(blockDB),
-		partition.WithReplicationParams(flags.LedgerReplicationMaxBlocksFetch, flags.LedgerReplicationMaxBlocks, time.Duration(flags.LedgerReplicationTimeoutMs)*time.Millisecond),
+		partition.WithReplicationParams(flags.LedgerReplicationMaxBlocksFetch, flags.LedgerReplicationMaxBlocks, flags.LedgerReplicationMaxWorkers, time.Duration(flags.LedgerReplicationTimeoutMs)*time.Millisecond),
 		partition.WithT1Timeout(time.Duration(flags.T1TimeoutMs)*time.Millisecond),
 	)
 	if err != nil {
@@ -238,7 +242,7 @@ func (f *cliFlags) pathWithDefault(path string, defaultFileName string) string {
 	return filepath.Join(f.HomeDir, defaultFileName)
 }
 
-func (f *cliFlags) initDB(path string, defaultFileName string) (keyvaluedb.KeyValueDB, error) {
+func (f *cliFlags) initDB(path string, defaultFileName string) (*boltdb.BoltDB, error) {
 	path = f.pathWithDefault(path, defaultFileName)
 	db, err := boltdb.New(path)
 	if err != nil {

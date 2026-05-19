@@ -38,9 +38,9 @@ func NewNode(ctx context.Context, txSystem TransactionSystem, conf *NodeConf, lo
 		trustBaseStore:    conf.trustBaseStore,
 		network:           conf.validatorNetwork,
 		lastLedgerReqTime: time.Time{},
+		replicationCh:     make(chan replicationRequest, conf.replicationConfig.maxWorkers),
 		log:               log,
 	}
-	n.timer.stop.Store(func() {})
 
 	shardConf, err := n.shardConfStore.GetFirst()
 	if err != nil {

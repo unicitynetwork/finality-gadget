@@ -2,7 +2,9 @@ package network
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
+	"fmt"
 	"slices"
 	"testing"
 
@@ -114,5 +116,15 @@ func Test_deserializeMsg(t *testing.T) {
 		var dest testMsg
 		err := deserializeMsg(bytes.NewReader(data), &dest)
 		require.EqualError(t, err, `unexpected data length zero`)
+	})
+
+	t.Run("length exceeds maximum message size", func(t *testing.T) {
+		// encode a length value that exceeds maxMsgSize
+		var buf [binary.MaxVarintLen64]byte
+		n := binary.PutUvarint(buf[:], maxMsgSize+1)
+
+		var dest testMsg
+		err := deserializeMsg(bytes.NewReader(buf[:n]), &dest)
+		require.EqualError(t, err, fmt.Sprintf("message size %d exceeds maximum %d", maxMsgSize+1, maxMsgSize))
 	})
 }

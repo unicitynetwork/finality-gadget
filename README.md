@@ -7,6 +7,11 @@ The FGP is a partition under Unicity BFT.
 It is a headers-only partition (with no units or transactions, and no state or block data other 
 than the hash of the PoW block being finalized).
 
+The finality gadget operates by periodically querying the underlying Proof-of-Work (PoW) `unicity-node` to fetch the
+current best block header. By default, every 2.4 hours, the FGP leader proposes a new state transition that includes the
+hash of this PoW block. Once certified by the BFT partition via a Unicity Certificate (UC), this PoW block is considered
+finalized and added to the partition state, preventing deep reorgs on the base layer.
+
 See Sec 6.3 Finality Gadget of the YP for more details.
 
 ## Prerequisites
@@ -67,4 +72,20 @@ Or via Docker:
 
 ```bash
 docker run unicity-fgp:local --help
+```
+
+### Example Run Command
+
+The following is an example of how to start an FGP node locally. By default, the node assumes the underlying PoW socket
+is located at `$HOME/.unicity/node.sock` (configurable via `--pow-socket-path`).
+
+```bash
+build/fgp run \
+    --home "test-nodes/fgp1" \
+    --trust-base test-nodes/trust-base.json \
+    --shard-conf test-nodes/shard-conf-3_0.json \
+    --address "/ip4/127.0.0.1/tcp/30666" \
+    --bootnodes "/ip4/127.0.0.1/tcp/26662/p2p/16Uiu2HAmQMpRWSCskWgsHnAPqHCcUHqe9hHS3Sxta3ziAsz7yU1h" \
+    --log-format text \
+    --log-level info
 ```

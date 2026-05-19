@@ -14,6 +14,31 @@ import (
 	powtypes "github.com/unicitynetwork/finality-gadget/pow/types"
 )
 
+func TestNewFGPTxSystem_dFGZero(t *testing.T) {
+	log := logger.New(t)
+	mockClient := &mockPowClient{}
+
+	_, err := NewFGPTxSystem(types.PartitionDescriptionRecord{
+		PartitionParams: map[string]string{"dFG": "0"},
+	}, mockClient, log)
+	require.ErrorContains(t, err, "dFG must be greater than 0")
+}
+
+func TestUpdateConfig_dFGZero(t *testing.T) {
+	log := logger.New(t)
+	mockClient := &mockPowClient{}
+
+	s, err := NewFGPTxSystem(types.PartitionDescriptionRecord{
+		PartitionParams: map[string]string{"dFG": "1"},
+	}, mockClient, log)
+	require.NoError(t, err)
+
+	err = s.UpdateConfig(&types.PartitionDescriptionRecord{
+		PartitionParams: map[string]string{"dFG": "0"},
+	})
+	require.ErrorContains(t, err, "dFG must be greater than 0")
+}
+
 func TestProposeBlock(t *testing.T) {
 	log := logger.New(t)
 
