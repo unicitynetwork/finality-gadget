@@ -275,8 +275,13 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 	}
 	err := bp.Sign(gocrypto.SHA256, signer)
 	require.NoError(t, err)
-	bp.Signature = test.RandomBytes(64)
+	require.NoError(t, bp.Verify(gocrypto.SHA256, verifier))
+	valid := bp.Signature
 
-	err = bp.Verify(gocrypto.SHA256, verifier)
-	require.ErrorContains(t, err, "verification failed")
+	bp.Signature = make([]byte, 65)
+	require.ErrorIs(t, bp.Verify(gocrypto.SHA256, verifier), crypto.ErrVerificationFailed)
+
+	// a 64-byte compact signature without the recovery id is not accepted
+	bp.Signature = valid[:64]
+	require.ErrorContains(t, bp.Verify(gocrypto.SHA256, verifier), "signature length is 64 b (expected 65 b)")
 }
